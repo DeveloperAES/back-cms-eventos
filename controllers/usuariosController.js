@@ -2,47 +2,48 @@ import db from "../config/db.js";
 import bcrypt from "bcrypt";
 
 
-
-// ✅ Registro de usuario (público)
-export const registrarUsuario = async (req, res) => {
+export const obtenerUsuariosPorEvento = async (req, res) => {
   try {
-    const { dni, nombres, apellidos, correo_corporativo, telefono, empresa, evento_id } = req.body;
+    const { eventoId } = req.params;
 
-    if (!dni || !nombres || !apellidos || !correo_corporativo || !evento_id) {
-      return res.status(400).json({ error: "Faltan campos requeridos" });
-    }
-
-    // 1️⃣ Verificar si el usuario ya existe
-    const [existe] = await db.query("SELECT id FROM usuarios WHERE dni = ?", [dni]);
-    let usuarioId;
-
-    if (existe.length > 0) {
-      usuarioId = existe[0].id;
-    } else {
-      // 2️⃣ Crear nuevo usuario con contraseña aleatoria
-      const passwordGenerada = Math.random().toString(36).substring(2, 8);
-      const password_hash = await bcrypt.hash(passwordGenerada, 10);
-
-      const [insert] = await db.query(
-        "INSERT INTO usuarios (dni, nombres, apellidos, correo_corporativo, telefono, empresa, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [dni, nombres, apellidos, correo_corporativo, telefono, empresa, password_hash]
-      );
-
-      usuarioId = insert.insertId;
-    }
-
-    // 3️⃣ Registrar participación en el evento
-    await db.query(
-      "INSERT INTO registro_eventos (evento_id, usuario_id) VALUES (?, ?)",
-      [evento_id, usuarioId]
+    // Validar que el admin tenga acceso a ese evento
+    const [check] = await db.query(
+      `SELECT * FROM eventos_admins WHERE evento_id = ? AND admin_id = ?`,
+      [eventoId, req.user.id]
     );
 
-    res.json({ mensaje: "✅ Usuario registrado al evento correctamente", usuario_id: usuarioId });
-  } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
-      return res.status(400).json({ error: "El usuario ya está registrado en este evento" });
+    if (!check || check.length === 0) {
+      return res.status(403).json({ error: "No autorizado para este evento" });
     }
+
+    // Traer solo el último intento por usuario para el evento
+    const [usuarios] = await db.query(
+      `
+     SELECT re.id AS registroId,
+       re.usuario_id AS id,
+       re.nombres,
+       re.apellidos,
+       re.correo_corporativo,
+       re.telefono,
+       re.empresa,
+       re.estado
+      FROM registro_eventos re
+      JOIN (
+          SELECT usuario_id, MAX(intent_number) AS ultimo_intento
+          FROM registro_eventos
+          WHERE evento_id = ?
+          GROUP BY usuario_id
+      ) ultimos ON re.usuario_id = ultimos.usuario_id AND re.intent_number = ultimos.ultimo_intento
+      WHERE re.evento_id = ?
+            `,
+      [eventoId, eventoId]
+    );
+
+    res.json({ eventoId, usuarios });
+  } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Error al registrar usuario" });
+    res.status(500).json({ error: "Error al obtener usuarios del evento" });
   }
 };
+
+

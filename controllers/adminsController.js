@@ -177,8 +177,9 @@ export const loginAdmin = async (req, res) => {
     const token = jwt.sign(
       { id: admin.id, rol: "admin" },
       process.env.JWT_SECRET,
-      { expiresIn: "8h" }
+      { expiresIn: process.env.JWT_EXPIRES } // ahora 7d
     );
+
 
     res.json({
       mensaje: "✅ Login exitoso",

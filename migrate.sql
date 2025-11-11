@@ -88,10 +88,15 @@ CREATE TABLE registro_eventos (
   evento_id INT NOT NULL,
   usuario_id INT NOT NULL,
   intent_number INT DEFAULT 1,
+  nombres VARCHAR(150) NOT NULL,
+  apellidos VARCHAR(150) NOT NULL,
+  correo_corporativo VARCHAR(150) NOT NULL,
+  telefono VARCHAR(30),
+  empresa VARCHAR(150),
+  estado ENUM('registrado', 'confirmado', 'asistio') DEFAULT 'registrado',
   fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
   fecha_confirmacion DATETIME NULL,
   fecha_asistencia DATETIME NULL,
-  estado ENUM('registrado', 'confirmado', 'asistio') DEFAULT 'registrado',
   qr_code VARCHAR(100) UNIQUE DEFAULT NULL,
   password VARCHAR(255) NULL,
   qr_code_url VARCHAR(255) NULL,
@@ -100,6 +105,7 @@ CREATE TABLE registro_eventos (
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   INDEX idx_evento_usuario (evento_id, usuario_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 -- =========================================
 -- 7️⃣ TABLA: LOGS (auditoría del sistema)

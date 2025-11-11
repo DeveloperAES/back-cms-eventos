@@ -43,13 +43,14 @@ export const registrarUsuarioEvento = async (req, res) => {
       "SELECT COUNT(*) AS total FROM registro_eventos WHERE evento_id = ? AND usuario_id = ?",
       [evento_id, usuario_id]
     );
-
     const intent_number = intentosPrevios[0].total + 1;
 
     // 📝 Registrar nuevo intento
     await db.query(
-      "INSERT INTO registro_eventos (evento_id, usuario_id, intent_number) VALUES (?, ?, ?)",
-      [evento_id, usuario_id, intent_number]
+      `INSERT INTO registro_eventos 
+   (evento_id, usuario_id, intent_number, nombres, apellidos, correo_corporativo, telefono, empresa)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [evento_id, usuario_id, intent_number, nombres, apellidos, correo_corporativo, telefono, empresa]
     );
 
     res.json({
@@ -67,30 +68,30 @@ export const registrarUsuarioEvento = async (req, res) => {
 /* ======================================================
    CONFIRMAR REGISTRO Y ENVIAR QR
 ====================================================== */
+
+
 export const confirmarRegistro = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Obtener datos
+    // Obtener registro con datos propios del intento
     const [rows] = await db.query(
       `SELECT 
-      r.*, 
-      u.nombres, 
-      u.apellidos, 
-      u.dni,
-      u.correo_corporativo, 
-      e.nombre AS evento
-   FROM registro_eventos r
-   JOIN usuarios u ON u.id = r.usuario_id
-   JOIN eventos e ON e.id = r.evento_id
-   WHERE r.id = ?`,
+          r.*, 
+          e.nombre AS evento
+       FROM registro_eventos r
+       JOIN eventos e ON e.id = r.evento_id
+       WHERE r.id = ?`,
       [id]
     );
 
-
-    if (rows.length === 0) return res.status(404).json({ error: "Registro no encontrado" });
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Registro no encontrado" });
+    }
 
     const registro = rows[0];
+
+    // Generar código único y URL del QR
     const uniqueCode = crypto.randomUUID();
     const qrURL = `${BASE_URL}/api/registros/validar/${uniqueCode}`;
 
@@ -114,6 +115,8 @@ export const confirmarRegistro = async (req, res) => {
         <h2 style="color:#0078D7;">¡Hola ${registro.nombres}!</h2>
         <p>Tu registro al evento <strong>${registro.evento}</strong> ha sido confirmado ✅.</p>
         <p><strong>DNI:</strong> ${registro.dni || "N/A"}<br/>
+           <strong>Correo:</strong> ${registro.correo_corporativo}<br/>
+           <strong>Teléfono:</strong> ${registro.telefono || "N/A"}<br/>
            <strong>Contraseña:</strong> ${password}</p>
         <p>Presenta este código QR en la entrada:</p>
         <div style="text-align:center;">
@@ -135,7 +138,7 @@ export const confirmarRegistro = async (req, res) => {
 
     res.json({ mensaje: "✅ Confirmación enviada correctamente" });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Error al confirmar registro:", error);
     res.status(500).json({ error: "Error al confirmar registro" });
   }
 };

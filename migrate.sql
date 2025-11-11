@@ -23,13 +23,15 @@ CREATE TABLE saadmins (
 -- =========================================
 CREATE TABLE admins (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  dni VARCHAR(20) UNIQUE NOT NULL,
   nombre VARCHAR(150) NOT NULL,
   email VARCHAR(150) UNIQUE NOT NULL,
   telefono VARCHAR(30),
   password_hash VARCHAR(255) NOT NULL,
   activo BOOLEAN DEFAULT TRUE,
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+);
+
 
 -- =========================================
 -- 3️⃣ TABLA: USUARIOS (Participantes)

@@ -5,24 +5,31 @@ import jwt from "jsonwebtoken";
 // ✅ Crear admin (solo SAADMIN)
 export const crearAdmin = async (req, res) => {
   try {
-    const { nombre, email, telefono, password } = req.body;
+    let { dni, nombre, email, telefono, password } = req.body;
 
-    // Validamos campos mínimos
-    if (!nombre || !email || !password) {
-      return res.status(400).json({ error: "Faltan campos requeridos" });
+    // Limpiar posibles espacios
+    dni = dni ? dni.trim() : "";
+    nombre = nombre ? nombre.trim() : "";
+    email = email ? email.trim() : "";
+
+    if (!dni || !nombre || !password) {
+      return res.status(400).json({ error: "Faltan campos requeridos (dni, nombre, password)" });
     }
 
-    // Verificar si ya existe
-    const [existe] = await db.query("SELECT * FROM admins WHERE email = ?", [email]);
+    // Verificar duplicados
+    const [existe] = await db.query(
+      "SELECT * FROM admins WHERE dni = ? OR email = ?",
+      [dni, email]
+    );
     if (existe.length > 0) {
-      return res.status(400).json({ error: "El email ya está registrado" });
+      return res.status(400).json({ error: "El DNI o email ya está registrado" });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
 
     await db.query(
-      "INSERT INTO admins (nombre, email, telefono, password_hash) VALUES (?, ?, ?, ?)",
-      [nombre, email, telefono, password_hash]
+      "INSERT INTO admins (dni, nombre, email, telefono, password_hash) VALUES (?, ?, ?, ?, ?)",
+      [dni, nombre, email || null, telefono || null, password_hash]
     );
 
     res.json({ mensaje: "✅ Admin creado correctamente" });
@@ -31,6 +38,8 @@ export const crearAdmin = async (req, res) => {
     res.status(500).json({ error: "Error al crear admin" });
   }
 };
+
+
 
 // ✅ Actualizar admin existente
 export const actualizarAdmin = async (req, res) => {
@@ -93,6 +102,7 @@ export const listarAdmins = async (req, res) => {
     const [rows] = await db.query(`
       SELECT 
         a.id,
+        a.dni,
         a.nombre,
         a.email,
         a.telefono,
@@ -130,23 +140,22 @@ export const cambiarEstadoAdmin = async (req, res) => {
 //Esto es para el admin login a un evento
 export const loginAdmin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { dni, password } = req.body;
 
     // Validar que se envíen ambos campos
-    if (!email || !password) {
-      return res.status(400).json({ error: "Faltan email o contraseña" });
+    if (!dni || !password) {
+      return res.status(400).json({ error: "Faltan DNI o contraseña" });
     }
 
     const [result] = await db.query(
-      "SELECT * FROM admins WHERE email = ? AND activo = 1",
-      [email]
+      "SELECT * FROM admins WHERE dni = ? AND activo = 1",
+      [dni]
     );
 
     if (!result || result.length === 0) {
       return res.status(404).json({ error: "❌ Admin no encontrado o inactivo" });
     }
 
-    // ⚠️ Aquí estaba el error: result es un arreglo
     const admin = result[0];
 
     // Comparar contraseñas
@@ -176,6 +185,7 @@ export const loginAdmin = async (req, res) => {
       token,
       admin: {
         id: admin.id,
+        dni: admin.dni,
         nombre: admin.nombre,
         email: admin.email,
         eventos
@@ -187,6 +197,7 @@ export const loginAdmin = async (req, res) => {
     res.status(500).json({ error: "Error en el login de admin" });
   }
 };
+
 
 
 // ✅ Obtener los eventos del admin autenticado

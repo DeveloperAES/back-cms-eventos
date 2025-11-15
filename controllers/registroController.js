@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
 import { enviarCorreo } from "../utils/mailer.js";
+import { subirQR } from "../utils/azure.js";
 
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:4000";
@@ -70,15 +71,167 @@ export const registrarUsuarioEvento = async (req, res) => {
 ====================================================== */
 
 
+// export const confirmarRegistro = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     // Obtener registro con datos propios del intento
+//     const [rows] = await db.query(
+//       `SELECT 
+//           r.*, 
+//           e.nombre AS evento
+//        FROM registro_eventos r
+//        JOIN eventos e ON e.id = r.evento_id
+//        WHERE r.id = ?`,
+//       [id]
+//     );
+
+//     if (rows.length === 0) {
+//       return res.status(404).json({ error: "Registro no encontrado" });
+//     }
+
+//     const registro = rows[0];
+
+//     // Generar código único y URL del QR
+//     const uniqueCode = crypto.randomUUID();
+//     const qrURL = `${BASE_URL}/api/registros/validar/${uniqueCode}`;
+
+//     // Generar QR como buffer
+//     const qrBuffer = await QRCode.toBuffer(qrURL);
+
+//     // Generar password temporal
+//     const password = crypto.randomBytes(4).toString("hex");
+
+//     // Guardar en BD
+//     await db.query(
+//       `UPDATE registro_eventos
+//        SET qr_code = ?, qr_code_url = ?, qr_image = ?, password = ?, estado = 'confirmado', fecha_confirmacion = NOW()
+//        WHERE id = ?`,
+//       [uniqueCode, qrURL, qrBuffer, password, id]
+//     );
+
+//     // HTML del correo
+//     const html = `
+//       <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #ddd;padding:20px;border-radius:8px;">
+//         <h2 style="color:#0078D7;">¡Hola ${registro.nombres}!</h2>
+//         <p>Tu registro al evento <strong>${registro.evento}</strong> ha sido confirmado ✅.</p>
+//         <p><strong>DNI:</strong> ${registro.dni || "N/A"}<br/>
+//            <strong>Correo:</strong> ${registro.correo_corporativo}<br/>
+//            <strong>Teléfono:</strong> ${registro.telefono || "N/A"}<br/>
+//            <strong>Contraseña:</strong> ${password}</p>
+//         <p>Presenta este código QR en la entrada:</p>
+//         <div style="text-align:center;">
+//           <img src="cid:qrimg" alt="QR de acceso" style="width:200px;height:200px;" />
+//         </div>
+//         <p>O usa este enlace: <a href="${qrURL}">${qrURL}</a></p>
+//         <hr>
+//         <p style="font-size:12px;color:#777;">Correo automático generado por Xplora Eventos</p>
+//       </div>
+//     `;
+
+//     // Enviar correo
+//     await enviarCorreo(
+//       registro.correo_corporativo,
+//       `Confirmación de asistencia - ${registro.evento}`,
+//       html,
+//       [{ filename: "qr.png", content: qrBuffer, cid: "qrimg" }]
+//     );
+
+//     res.json({ mensaje: "✅ Confirmación enviada correctamente" });
+//   } catch (error) {
+//     console.error("❌ Error al confirmar registro:", error);
+//     res.status(500).json({ error: "Error al confirmar registro" });
+//   }
+// };
+
+
+// export const confirmarRegistro = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const [rows] = await db.query(
+//       `SELECT r.*, e.nombre AS evento 
+//        FROM registro_eventos r
+//        JOIN eventos e ON e.id = r.evento_id
+//        WHERE r.id = ?`,
+//       [id]
+//     );
+
+//     if (rows.length === 0) {
+//       return res.status(404).json({ error: "Registro no encontrado" });
+//     }
+
+//     const registro = rows[0];
+
+//     // Generar código único
+//     const uniqueCode = crypto.randomUUID();
+//     const qrValidationURL = `${process.env.BASE_URL}/api/registros/validar/${uniqueCode}`;
+
+//     // Generar QR
+//     const qrBuffer = await QRCode.toBuffer(qrValidationURL);
+
+//     // Subir QR a Azure
+//     const blobName = `qr_${uniqueCode}.png`;
+//     const qrPublicURL = await subirQR(blobName, qrBuffer);
+
+//     // Password temporal
+//     const password = crypto.randomBytes(4).toString("hex");
+
+//     // Guardar en BD
+//     await db.query(
+//       `UPDATE registro_eventos
+//        SET qr_code = ?, qr_code_url = ?, password = ?, estado = 'confirmado',
+//            fecha_confirmacion = NOW()
+//        WHERE id = ?`,
+//       [uniqueCode, qrPublicURL, password, id]
+//     );
+
+//     // HTML del correo
+//     const html = `
+//       <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
+//         <h2>¡Hola ${registro.nombres}!</h2>
+//         <p>Tu registro al evento <strong>${registro.evento}</strong> ha sido confirmado.</p>
+
+//         <p>Presenta este QR en la entrada:</p>
+//         <div style="text-align:center;">
+//           <img src="${qrPublicURL}" width="200" />
+//         </div>
+
+//         <p>O usa este enlace: <a href="${qrValidationURL}">${qrValidationURL}</a></p>
+
+//         <p><strong>Contraseña temporal:</strong> ${password}</p>
+//       </div>
+//     `;
+
+//     // Enviar correo vía servicio HTTP
+//     const enviado = await enviarCorreo(
+//       registro.correo_corporativo,
+//       `Confirmación de asistencia - ${registro.evento}`,
+//       html
+//     );
+
+//     if (!enviado) {
+//       return res.status(500).json({ error: "No se pudo enviar el correo" });
+//     }
+
+//     return res.json({
+//       mensaje: "✅ Confirmación enviada correctamente",
+//       qr_url: qrPublicURL
+//     });
+
+//   } catch (error) {
+//     console.error("❌ Error al confirmar registro:", error);
+//     return res.status(500).json({ error: "Error al confirmar registro" });
+//   }
+// };
+
+
 export const confirmarRegistro = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Obtener registro con datos propios del intento
     const [rows] = await db.query(
-      `SELECT 
-          r.*, 
-          e.nombre AS evento
+      `SELECT r.*, e.nombre AS evento 
        FROM registro_eventos r
        JOIN eventos e ON e.id = r.evento_id
        WHERE r.id = ?`,
@@ -91,57 +244,68 @@ export const confirmarRegistro = async (req, res) => {
 
     const registro = rows[0];
 
-    // Generar código único y URL del QR
+    // Generar código único
     const uniqueCode = crypto.randomUUID();
-    const qrURL = `${BASE_URL}/api/registros/validar/${uniqueCode}`;
+    const qrValidationURL = `${process.env.BASE_URL}/api/registros/validar/${uniqueCode}`;
 
-    // Generar QR como buffer
-    const qrBuffer = await QRCode.toBuffer(qrURL);
+    // Generar QR
+    const qrBuffer = await QRCode.toBuffer(qrValidationURL);
 
-    // Generar password temporal
+    // Subir QR a Azure
+    const blobName = `qr_${uniqueCode}.png`;
+    const qrPublicURL = await subirQR(blobName, qrBuffer);
+
+    // Password temporal
     const password = crypto.randomBytes(4).toString("hex");
 
-    // Guardar en BD
+    // Guardar info
     await db.query(
       `UPDATE registro_eventos
-       SET qr_code = ?, qr_code_url = ?, qr_image = ?, password = ?, estado = 'confirmado', fecha_confirmacion = NOW()
+       SET qr_code = ?, qr_code_url = ?, password = ?, estado = 'confirmado',
+           fecha_confirmacion = NOW()
        WHERE id = ?`,
-      [uniqueCode, qrURL, qrBuffer, password, id]
+      [uniqueCode, qrPublicURL, password, id]
     );
 
-    // HTML del correo
+    // HTML
     const html = `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #ddd;padding:20px;border-radius:8px;">
-        <h2 style="color:#0078D7;">¡Hola ${registro.nombres}!</h2>
-        <p>Tu registro al evento <strong>${registro.evento}</strong> ha sido confirmado ✅.</p>
-        <p><strong>DNI:</strong> ${registro.dni || "N/A"}<br/>
-           <strong>Correo:</strong> ${registro.correo_corporativo}<br/>
-           <strong>Teléfono:</strong> ${registro.telefono || "N/A"}<br/>
-           <strong>Contraseña:</strong> ${password}</p>
-        <p>Presenta este código QR en la entrada:</p>
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
+        <h2>¡Hola ${registro.nombres}!</h2>
+        <p>Tu registro al evento <strong>${registro.evento}</strong> ha sido confirmado.</p>
+
+        <p>Presenta este QR en la entrada:</p>
         <div style="text-align:center;">
-          <img src="cid:qrimg" alt="QR de acceso" style="width:200px;height:200px;" />
+          <img src="${qrPublicURL}" width="200" />
         </div>
-        <p>O usa este enlace: <a href="${qrURL}">${qrURL}</a></p>
-        <hr>
-        <p style="font-size:12px;color:#777;">Correo automático generado por Xplora Eventos</p>
+
+        <p>Enlace alterno: <a href="${qrValidationURL}">${qrValidationURL}</a></p>
+        <p><strong>Usuario:</strong>${registro.dni}</p>
+        <p><strong>Contraseña temporal:</strong> ${password}</p>
       </div>
     `;
 
     // Enviar correo
-    await enviarCorreo(
+    const enviado = await enviarCorreo(
       registro.correo_corporativo,
       `Confirmación de asistencia - ${registro.evento}`,
-      html,
-      [{ filename: "qr.png", content: qrBuffer, cid: "qrimg" }]
+      html
     );
 
-    res.json({ mensaje: "✅ Confirmación enviada correctamente" });
+    if (!enviado) {
+      return res.status(500).json({ error: "No se pudo enviar el correo" });
+    }
+
+    return res.json({
+      mensaje: "✅ Confirmación enviada correctamente",
+      qr_url: qrPublicURL
+    });
+
   } catch (error) {
     console.error("❌ Error al confirmar registro:", error);
-    res.status(500).json({ error: "Error al confirmar registro" });
+    return res.status(500).json({ error: "Error al confirmar registro" });
   }
 };
+
 
 /* ======================================================
    REENVIAR RECORDATORIOS
